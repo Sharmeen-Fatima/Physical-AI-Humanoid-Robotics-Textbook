@@ -1,23 +1,177 @@
 /**
- * CSS files with the .module.css suffix will be treated as CSS modules
- * and scoped locally.
+ * Cyber-Physical Landing Page Styles
+ * Futuristic hero section with neon accents
  */
 
 .heroBanner {
-  padding: 4rem 0;
+  padding: 8rem 0 6rem 0;
   text-align: center;
   position: relative;
   overflow: hidden;
+  background: linear-gradient(180deg,
+    rgba(10, 14, 26, 1) 0%,
+    rgba(18, 24, 38, 1) 50%,
+    rgba(10, 14, 26, 1) 100%
+  );
 }
 
-@media screen and (max-width: 996px) {
-  .heroBanner {
-    padding: 2rem;
-  }
+.heroBanner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    ellipse at top,
+    rgba(0, 217, 255, 0.15) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+}
+
+.heroTitle {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, #00d9ff 0%, #b366ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 40px rgba(0, 217, 255, 0.3);
+}
+
+.heroSubtitle {
+  font-size: 1.3rem;
+  line-height: 1.6;
+  color: rgba(232, 234, 240, 0.9);
+  margin-bottom: 3rem;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  font-weight: 400;
+}
+
+.author {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-weight: 600;
+  color: #00d9ff;
+  font-size: 1.1rem;
 }
 
 .buttons {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+/* Feature Cards Section */
+.features {
+  padding: 4rem 0 6rem 0;
+  background-color: rgba(10, 14, 26, 1);
+}
+
+.featureCard {
+  background: rgba(18, 24, 38, 0.6);
+  border: 1px solid rgba(0, 217, 255, 0.2);
+  border-radius: 12px;
+  padding: 2.5rem 2rem;
+  height: 100%;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(8px);
+}
+
+.featureCard:hover {
+  background: rgba(18, 24, 38, 0.8);
+  border-color: rgba(0, 217, 255, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 217, 255, 0.2);
+  transform: translateY(-8px);
+}
+
+.featureIcon {
+  font-size: 3.5rem;
+  margin-bottom: 1.5rem;
+  filter: drop-shadow(0 4px 12px rgba(0, 217, 255, 0.3));
+}
+
+.featureTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.featureDescription {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: rgba(232, 234, 240, 0.8);
+  margin: 0;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 4rem 2rem 3rem 2rem;
+  }
+
+  .heroTitle {
+    font-size: 2.5rem;
+  }
+
+  .heroSubtitle {
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+  }
+
+  .buttons {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .buttons a {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .features {
+    padding: 3rem 0 4rem 0;
+  }
+
+  .featureCard {
+    margin-bottom: 2rem;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .heroTitle {
+    font-size: 2rem;
+  }
+
+  .heroSubtitle {
+    font-size: 1rem;
+  }
+
+  .featureIcon {
+    font-size: 2.5rem;
+  }
+
+  .featureTitle {
+    font-size: 1.3rem;
+  }
+
+  .featureDescription {
+    font-size: 0.95rem;
+  }
 }
