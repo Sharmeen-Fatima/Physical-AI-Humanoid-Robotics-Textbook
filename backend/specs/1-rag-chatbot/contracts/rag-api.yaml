@@ -1,0 +1,409 @@
+openapi: 3.0.3
+info:
+  title: RAG Chatbot API
+  description: API for querying the Physical AI & Humanoid Robotics book using Retrieval-Augmented Generation
+  version: 1.0.0
+  contact:
+    name: RAG Chatbot Team
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.rag-chatbot.example.com
+    description: Production server (placeholder)
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Verify system health and dependency status
+      operationId: healthCheck
+      tags:
+        - System
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                    example: healthy
+                  services:
+                    type: object
+                    properties:
+                      qdrant:
+                        type: string
+                        enum: [connected, disconnected]
+                      cohere:
+                        type: string
+                        enum: [available, unavailable]
+                      gemini:
+                        type: string
+                        enum: [available, unavailable]
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2025-12-20T10:30:00Z"
+
+  /query:
+    post:
+      summary: Submit a question to the RAG chatbot
+      description: |
+        Query the book content and receive a grounded answer with citations.
+        If no relevant content is found, returns "Information not found in the book."
+      operationId: queryBook
+      tags:
+        - Query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - question
+              properties:
+                question:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                  description: User's question about the book
+                  example: "What are the advantages of hydraulic actuators in humanoid robots?"
+                session_id:
+                  type: string
+                  format: uuid
+                  description: Optional session ID for multi-turn conversations
+                  example: "12345678-90ab-cdef-1234-567890abcdef"
+                top_k:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  default: 5
+                  description: Number of top chunks to retrieve
+                  example: 5
+                similarity_threshold:
+                  type: number
+                  minimum: 0.0
+                  maximum: 1.0
+                  default: 0.70
+                  description: Minimum similarity score for chunk relevance
+                  example: 0.70
+      responses:
+        '200':
+          description: Successfully generated answer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Invalid request (e.g., empty question, invalid parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error (e.g., API failures)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable (e.g., Qdrant or Gemini down)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /ingest:
+    post:
+      summary: Trigger book content ingestion
+      description: |
+        Scrape, chunk, embed, and store book content from the configured sitemap.
+        This is an admin-only operation.
+      operationId: ingestBook
+      tags:
+        - Admin
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force_reingestion:
+                  type: boolean
+                  default: false
+                  description: If true, re-ingest all content (idempotent via content hashing)
+                  example: false
+                book_version:
+                  type: string
+                  description: Version identifier for this ingestion run
+                  example: "2025-12-20"
+      responses:
+        '202':
+          description: Ingestion started (async operation)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [started]
+                    example: started
+                  message:
+                    type: string
+                    example: "Book ingestion started. Check /ingest/status for progress."
+                  ingestion_id:
+                    type: string
+                    format: uuid
+                    example: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Ingestion failed to start
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /ingest/status:
+    get:
+      summary: Check ingestion status
+      description: Get the current status of a book ingestion operation
+      operationId: getIngestionStatus
+      tags:
+        - Admin
+      parameters:
+        - name: ingestion_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Specific ingestion run ID (if omitted, returns latest)
+      responses:
+        '200':
+          description: Ingestion status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ingestion_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [in_progress, completed, failed]
+                  progress:
+                    type: object
+                    properties:
+                      pages_scraped:
+                        type: integer
+                        example: 42
+                      chunks_created:
+                        type: integer
+                        example: 850
+                      embeddings_generated:
+                        type: integer
+                        example: 850
+                      chunks_stored:
+                        type: integer
+                        example: 850
+                  started_at:
+                    type: string
+                    format: date-time
+                  completed_at:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+
+  /session:
+    post:
+      summary: Create a new conversation session
+      description: Initialize a session for multi-turn conversations
+      operationId: createSession
+      tags:
+        - Session
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                    example: "12345678-90ab-cdef-1234-567890abcdef"
+                  created_at:
+                    type: string
+                    format: date-time
+                    example: "2025-12-20T14:00:00Z"
+                  expires_at:
+                    type: string
+                    format: date-time
+                    example: "2025-12-20T14:30:00Z"
+
+  /session/{session_id}:
+    delete:
+      summary: End a conversation session
+      description: Clear session history and mark as inactive
+      operationId: deleteSession
+      tags:
+        - Session
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Session ID to delete
+      responses:
+        '204':
+          description: Session deleted successfully
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    QueryResponse:
+      type: object
+      required:
+        - query_id
+        - answer
+        - timestamp
+      properties:
+        query_id:
+          type: string
+          format: uuid
+          description: Unique identifier for this query
+          example: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+        answer:
+          type: string
+          description: Generated answer or "Information not found in the book."
+          example: "Hydraulic actuators offer high force-to-weight ratios and power density, making them suitable for heavy-duty tasks in humanoid robots."
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+          description: Source references (empty if no relevant context found)
+        retrieved_chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/RetrievedChunk'
+          description: Chunks used to generate the answer (for transparency)
+        confidence:
+          type: string
+          enum: [high, medium, low]
+          description: Confidence indicator based on similarity scores
+          example: "high"
+        session_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Session ID (if provided in request)
+        timestamp:
+          type: string
+          format: date-time
+          description: When the response was generated
+          example: "2025-12-20T14:22:12Z"
+
+    Citation:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Source page URL
+          example: "https://physical-ai-humanoid-robotics-textb-pied.vercel.app/chapter-3/actuators"
+        section:
+          type: string
+          nullable: true
+          description: Section/chapter title
+          example: "Chapter 3: Actuators and Power Systems"
+
+    RetrievedChunk:
+      type: object
+      required:
+        - text
+        - similarity_score
+        - rank
+      properties:
+        text:
+          type: string
+          description: Chunk content (truncated if too long)
+          example: "Hydraulic actuators provide high force density..."
+        similarity_score:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          description: Cosine similarity score
+          example: 0.87
+        rank:
+          type: integer
+          minimum: 1
+          description: Ranking position (1 = most relevant)
+          example: 1
+        url:
+          type: string
+          format: uri
+          description: Source page URL
+        section:
+          type: string
+          nullable: true
+          description: Section/chapter title
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "invalid_request"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Question cannot be empty"
+        details:
+          type: object
+          nullable: true
+          description: Additional error details (optional)
+        timestamp:
+          type: string
+          format: date-time
+
+tags:
+  - name: Query
+    description: Query endpoints for asking questions
+  - name: Session
+    description: Session management for multi-turn conversations
+  - name: Admin
+    description: Administrative operations (ingestion, monitoring)
+  - name: System
+    description: System health and status

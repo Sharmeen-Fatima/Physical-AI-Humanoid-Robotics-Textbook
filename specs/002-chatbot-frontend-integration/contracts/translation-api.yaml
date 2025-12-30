@@ -1,0 +1,180 @@
+openapi: 3.0.3
+info:
+  title: RAG Chatbot Translation API
+  description: Text translation endpoints for English-Urdu bidirectional translation
+  version: 1.0.0
+
+servers:
+  - url: https://physical-ai-humanoid-robotics-textb-pied.vercel.app/api
+  - url: http://localhost:3000/api
+
+tags:
+  - name: Translation
+    description: Translation operations
+
+paths:
+  /translate:
+    post:
+      tags:
+        - Translation
+      summary: Translate text between English and Urdu
+      description: |
+        Translate text using Google Translate API with caching to reduce costs.
+        Automatically detects source language if not specified.
+      operationId: translateText
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+                - targetLanguage
+              properties:
+                text:
+                  type: string
+                  description: Text to translate
+                  example: What is physical AI?
+                sourceLanguage:
+                  type: string
+                  enum: [en, ur]
+                  description: Source language (auto-detect if omitted)
+                  example: en
+                targetLanguage:
+                  type: string
+                  enum: [en, ur]
+                  description: Target language
+                  example: ur
+      responses:
+        '200':
+          description: Translation successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  translatedText:
+                    type: string
+                    example: فزیکل AI کیا ہے؟
+                  sourceLanguage:
+                    type: string
+                    example: en
+                  targetLanguage:
+                    type: string
+                    example: ur
+                  cached:
+                    type: boolean
+                    description: Whether result was from cache
+                    example: false
+        '400':
+          description: Validation error (missing text, invalid language)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Translation service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                success: false
+                error: Translation service temporarily unavailable
+                code: SERVICE_UNAVAILABLE
+
+  /translate/batch:
+    post:
+      tags:
+        - Translation
+      summary: Translate multiple texts in batch
+      description: Efficient batch translation for multiple text segments
+      operationId: translateBatch
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - texts
+                - targetLanguage
+              properties:
+                texts:
+                  type: array
+                  items:
+                    type: string
+                  maxItems: 100
+                  example: ["Hello", "Welcome", "Thank you"]
+                sourceLanguage:
+                  type: string
+                  enum: [en, ur]
+                  example: en
+                targetLanguage:
+                  type: string
+                  enum: [en, ur]
+                  example: ur
+      responses:
+        '200':
+          description: Batch translation successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  translations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        original:
+                          type: string
+                          example: Hello
+                        translated:
+                          type: string
+                          example: ہیلو
+                        cached:
+                          type: boolean
+                          example: true
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+        code:
+          type: string
+
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: auth_token

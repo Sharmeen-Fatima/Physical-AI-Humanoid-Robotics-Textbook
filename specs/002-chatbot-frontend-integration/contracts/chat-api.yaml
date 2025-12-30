@@ -1,0 +1,275 @@
+openapi: 3.0.3
+info:
+  title: RAG Chatbot Chat API
+  description: Chat endpoints for sending messages and retrieving history
+  version: 1.0.0
+
+servers:
+  - url: https://physical-ai-humanoid-robotics-textb-pied.vercel.app/api
+  - url: http://localhost:3000/api
+
+tags:
+  - name: Chat
+    description: Chatbot message operations
+
+paths:
+  /chat/message:
+    post:
+      tags:
+        - Chat
+      summary: Send message to chatbot
+      description: |
+        Send a question to the RAG backend and receive an answer with citations.
+        Creates a new session if sessionId is not provided.
+      operationId: sendMessage
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  maxLength: 1000
+                  description: User question
+                  example: What are the main components of a humanoid robot?
+                sessionId:
+                  type: string
+                  format: uuid
+                  description: Existing session ID (creates new if omitted)
+                  example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                language:
+                  type: string
+                  enum: [en, ur]
+                  default: en
+                  description: Language for response translation
+      responses:
+        '200':
+          description: Message sent successfully, response received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  sessionId:
+                    type: string
+                    format: uuid
+                    example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                  userMessage:
+                    $ref: '#/components/schemas/ChatMessage'
+                  assistantMessage:
+                    $ref: '#/components/schemas/ChatMessage'
+        '400':
+          description: Validation error (message too long, invalid session)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded (30 questions/hour)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                success: false
+                error: Rate limit exceeded. Please try again later.
+                code: RATE_LIMIT_EXCEEDED
+        '503':
+          description: RAG backend unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                success: false
+                error: Chatbot service temporarily unavailable
+                code: SERVICE_UNAVAILABLE
+
+  /chat/history:
+    get:
+      tags:
+        - Chat
+      summary: Get user's chat sessions
+      description: Retrieve all chat sessions for the authenticated user
+      operationId: getChatHistory
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+          description: Number of sessions to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Pagination offset
+      responses:
+        '200':
+          description: Chat history retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatSessionWithMessages'
+                  total:
+                    type: integer
+                    example: 25
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /chat/session/{sessionId}:
+    get:
+      tags:
+        - Chat
+      summary: Get specific session with messages
+      operationId: getSession
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  session:
+                    $ref: '#/components/schemas/ChatSessionWithMessages'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+        role:
+          type: string
+          enum: [user, assistant]
+          example: assistant
+        content:
+          type: string
+          example: The main components include sensors, actuators...
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Citation'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2025-12-25T10:35:00Z'
+        translatedContent:
+          type: string
+          nullable: true
+          example: null
+        language:
+          type: string
+          enum: [en, ur]
+          example: en
+
+    Citation:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+          example: https://physical-ai-humanoid-robotics-textb-pied.vercel.app/docs/chapter-3
+        section:
+          type: string
+          example: Robot Components
+        score:
+          type: number
+          format: float
+          example: 0.873
+
+    ChatSessionWithMessages:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+        title:
+          type: string
+          example: What is physical AI?
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        messageCount:
+          type: integer
+          example: 6
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+        code:
+          type: string
+
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: auth_token

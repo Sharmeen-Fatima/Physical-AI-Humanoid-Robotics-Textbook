@@ -1,0 +1,77 @@
+// Prisma schema for RAG Chatbot Frontend Integration
+// Based on data-model.md from specs/002-chatbot-frontend-integration/
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String        @id @default(uuid())
+  email               String        @unique @db.VarChar(255)
+  passwordHash        String        @map("password_hash") @db.VarChar(255)
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  languagePreference  String        @default("en") @map("language_preference") @db.VarChar(10)
+  isActive            Boolean       @default(true) @map("is_active")
+
+  chatSessions        ChatSession[]
+
+  @@index([email], name: "idx_users_email")
+  @@index([createdAt], name: "idx_users_created_at")
+  @@map("users")
+}
+
+model ChatSession {
+  id            String        @id @default(uuid())
+  userId        String        @map("user_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  title         String?       @db.VarChar(255)
+  isActive      Boolean       @default(true) @map("is_active")
+  messageCount  Int           @default(0) @map("message_count")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      ChatMessage[]
+
+  @@index([userId], name: "idx_sessions_user_id")
+  @@index([updatedAt], name: "idx_sessions_updated_at")
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id                  String      @id @default(uuid())
+  sessionId           String      @map("session_id")
+  role                String      @db.VarChar(10)  // 'user' or 'assistant'
+  content             String      @db.Text
+  citations           Json?       // JSONB array of citation objects
+  createdAt           DateTime    @default(now()) @map("created_at")
+  translatedContent   String?     @map("translated_content") @db.Text
+  language            String      @default("en") @db.VarChar(10)
+
+  session             ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId], name: "idx_messages_session_id")
+  @@index([createdAt], name: "idx_messages_created_at")
+  @@map("chat_messages")
+}
+
+model TranslationCache {
+  id                String    @id @default(uuid())
+  sourceTextHash    String    @map("source_text_hash") @db.VarChar(64)
+  sourceLanguage    String    @map("source_language") @db.VarChar(10)
+  targetLanguage    String    @map("target_language") @db.VarChar(10)
+  sourceText        String    @map("source_text") @db.Text
+  translatedText    String    @map("translated_text") @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at")
+  hitCount          Int       @default(0) @map("hit_count")
+  lastUsedAt        DateTime? @map("last_used_at")
+
+  @@unique([sourceTextHash, sourceLanguage, targetLanguage], name: "idx_translation_cache_hash")
+  @@index([createdAt], name: "idx_translation_cache_created_at")
+  @@map("translation_cache")
+}
